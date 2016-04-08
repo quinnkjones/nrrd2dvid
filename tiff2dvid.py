@@ -1,16 +1,9 @@
-# -*- coding: utf-8 -*-
-""" NRRD2DVID
-    Written by Quinn Jones
-    Additional Contributions by Michael Morehead
-    https://github.com/quinnkjones/nrrd2dvid
-"""
-
-import nrrd
 from libdvid import DVIDNodeService, DVIDServerService, DVIDException
 import argparse
 import json
 import numpy as np
-from math import ceil
+import pdb
+import matplotlib as plt
 
 
 parser = argparse.ArgumentParser(description="Batch mode nrrd file to dvid migration script")
@@ -52,15 +45,15 @@ def push_to_dvid(method, handle, data, preoffset=(0, 0, 0), throttle=False, comp
 
 def yieldtoDvid(method, handle, header, filehandle, dtype, compress=True):
     pdb.set_trace()
-    for col, row, z, data in nrrd.iterate_data(header, input_tiff, handle):
+    for col, row, z, data in nrrd.iterate_data(header, inputnrrd, handle):
         data = np.ascontiguousarray(data)
         data = data.astype(dtype)
         res = method(handle, data, (z, row, col), False, compress)
         print res
 
 
-with open(args.file, "rb") as input_tiff:
-    header = nrrd.read_header(input_tiff)
+with open(args.file, "rb") as inputnrrd:
+    header = nrrd.read_header(inputnrrd)
     headerJson = json.dumps(header)
 
     service = DVIDNodeService(addr, uid)
@@ -71,7 +64,7 @@ with open(args.file, "rb") as input_tiff:
         service.put(kvname, args.file, headerJson)
         # we should check if the key is there and warn the user to avoid overwriting when not desired
 
-    data = np.ascontiguousarray(nrrd.read_data(header, input_tiff, args.file))
+    data = np.ascontiguousarray(nrrd.read_data(header, inputnrrd, args.file))
 
     reshaper = []
 
@@ -95,7 +88,7 @@ with open(args.file, "rb") as input_tiff:
             print 'warning override data?'
 
         push_to_dvid(service.put_labels3D, args.file, d2)
-        # yieldtoDvid(service.put_labels3D, args.file, header, input_tiff, np.uint64)
+        # yieldtoDvid(service.put_labels3D, args.file, header, inputnrrd, np.uint64)
     else:
         if header['keyvaluepairs'].get('seg', None) is None:
             print 'warning header value for seg is not set nor is flag'
@@ -105,4 +98,4 @@ with open(args.file, "rb") as input_tiff:
         except DVIDException:
             print "warnging override data"
         push_to_dvid(service.put_gray3D, args.file, d2, compress=False)
-        # yieldtoDvid(service.put_gray3D, args.file, header, input_tiff, np.uint8, compress=False)
+        # yieldtoDvid(service.put_gray3D, args.file, header, inputnrrd, np.uint8, compress=False)

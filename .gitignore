@@ -1,3 +1,4 @@
 *.nrrd
 *.pyc
 nrrd.py
+test_images/
