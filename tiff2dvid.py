@@ -10,7 +10,8 @@ import argparse
 import json
 import numpy as np
 import pdb
-import matplotlib as plt
+import tifffile as tiff
+import code
 
 
 parser = argparse.ArgumentParser(description="Batch mode nrrd file to dvid migration script")
@@ -61,50 +62,52 @@ def yieldtoDvid(method, handle, header, filehandle, dtype, compress=True):
         print res
 
 
-with open(args.file, "rb") as input_tiff:
-    header = args.file
-    data = plt.imread(tiff_file)
+input_tiff = args.file
+header = args.file
+data = tiff.imread(input_tiff)
 
-    service = DVIDNodeService(addr, uid)
-    kvname = 'headers'
-    if service.create_keyvalue(kvname):
-        service.put(kvname, args.file, headerJson)
+code.interact(local=locals())
+
+service = DVIDNodeService(addr, uid)
+kvname = 'headers'
+if service.create_keyvalue(kvname):
+    service.put(kvname, args.file, headerJson)
+else:
+    service.put(kvname, args.file, headerJson)
+    # we should check if the key is there and warn the user to avoid overwriting when not desired
+
+# data = np.ascontiguousarray(nrrd.read_data(header, input_tiff, args.file))
+
+reshaper = []
+
+for dim in data.shape:
+    if dim % 32 != 0:
+        newmax = (dim / 32 + 1) * 32
     else:
-        service.put(kvname, args.file, headerJson)
-        # we should check if the key is there and warn the user to avoid overwriting when not desired
+        newmax = dim
+    reshaper += [(0, newmax - dim)]
 
-    # data = np.ascontiguousarray(nrrd.read_data(header, input_tiff, args.file))
+data = np.pad(data, reshaper, mode='constant')
 
-    reshaper = []
+d2 = data.copy()
+data = None
+pdb.set_trace()
+if args.segmentation or header['keyvaluepairs'].get('seg', '') == 'true':
+    d2 = d2.astype(np.uint64)
+    try:
+        service.create_labelblk(args.file)
+    except DVIDException:
+        print 'warning override data?'
 
-    for dim in data.shape:
-        if dim % 32 != 0:
-            newmax = (dim / 32 + 1) * 32
-        else:
-            newmax = dim
-        reshaper += [(0, newmax - dim)]
-
-    data = np.pad(data, reshaper, mode='constant')
-
-    d2 = data.copy()
-    data = None
-    pdb.set_trace()
-    if args.segmentation or header['keyvaluepairs'].get('seg', '') == 'true':
-        d2 = d2.astype(np.uint64)
-        try:
-            service.create_labelblk(args.file)
-        except DVIDException:
-            print 'warning override data?'
-
-        push_to_dvid(service.put_labels3D, args.file, d2)
-        # yieldtoDvid(service.put_labels3D, args.file, header, input_tiff, np.uint64)
-    else:
-        if header['keyvaluepairs'].get('seg', None) is None:
-            print 'warning header value for seg is not set nor is flag'
-        d2 = d2.astype(np.uint8)
-        try:
-            service.create_grayscale8(args.file)
-        except DVIDException:
-            print "warnging override data"
-        push_to_dvid(service.put_gray3D, args.file, d2, compress=False)
-        # yieldtoDvid(service.put_gray3D, args.file, header, input_tiff, np.uint8, compress=False)
+    push_to_dvid(service.put_labels3D, args.file, d2)
+    # yieldtoDvid(service.put_labels3D, args.file, header, input_tiff, np.uint64)
+else:
+    if header['keyvaluepairs'].get('seg', None) is None:
+        print 'warning header value for seg is not set nor is flag'
+    d2 = d2.astype(np.uint8)
+    try:
+        service.create_grayscale8(args.file)
+    except DVIDException:
+        print "warnging override data"
+    push_to_dvid(service.put_gray3D, args.file, d2, compress=False)
+    # yieldtoDvid(service.put_gray3D, args.file, header, input_tiff, np.uint8, compress=False)

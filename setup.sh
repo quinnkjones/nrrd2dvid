@@ -18,9 +18,9 @@ export PATH="/home/$USER/miniconda/env/dvidlib/lib:$PATH"
 
 conda install -n libdvid numpy
 
-                                                       
+
 source activate libdvid
 
 conda install -c https://conda.anaconda.org/auto pynrrd
 
-                                                                                                           
+python setup_tifffile.py build_ext --inplace
